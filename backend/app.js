@@ -29,7 +29,7 @@ connectDB()
 .then(
     ()=>{
         app.listen(process.env.PORT, ()=>{
-            console.log(`App is Listening on: http://localhost:${process.env.PORT}`)
+            console.log(`App is Listening on: https://localhost:${process.env.PORT}`)
         })
     }
 )
