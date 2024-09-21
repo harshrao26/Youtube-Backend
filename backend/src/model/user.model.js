@@ -1,6 +1,10 @@
 import mongoose, { Schema } from 'mongoose'
 import mongooseAggregatePaginate from 'mongoose-aggregate-paginate-v2'
 import bcrypt from "bcrypt"
+import dotenv from 'dotenv'
+import jwt from 'jsonwebtoken'
+dotenv.config()
+
 const UserSchema = new Schema({
     username: {
         type: String,
@@ -24,12 +28,12 @@ const UserSchema = new Schema({
     avatarImg: {
         type: String
     },
-    coverImg:{
+    coverImg: {
         type: String
     },
-    watchHistory: 
+    watchHistory:
         [
-            {            
+            {
                 type: Schema.Types.ObjectId,
                 ref: "Video"
             }
@@ -42,55 +46,44 @@ const UserSchema = new Schema({
     refreshToken: {
         type: String
     }
-    
-    
-    
 }, {
     timestamps: true
 })
 
-UserSchema.pre("save", async function (next){
-    if(!this.isModified("password")) return next()
-    this.password = bcrypt.hash(this.password, 10)  
+UserSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next()
+    this.password = await bcrypt.hash(this.password, 10)
     next()
 
 })
 
-UserSchema.methods.isPasswordCorrect = async function (password){
-    return bcrypt.compare(password, this.password)
+UserSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password)
 }
 
-UserSchema.methods.generateAccessToken = function (){
-    return jwt.sign ({
+UserSchema.methods.generateAccessToken = function () {
+    return jwt.sign({
         _id: this._id,
         fullname: this.fullname,
         email: this.email,
         username: this.username
     },
-    process.env.ACCESS_TOKEN_SECRET,
-    {
-        expireIn: process.env.ACCESS_TOKEN_EXPIRY
-    }
-
-)
-
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+        }
+    )
 }
 
-UserSchema.methods.generateRefreshToken = function (){
-    return jwt.sign ({
+UserSchema.methods.generateRefreshToken = function () {
+    return jwt.sign({
         _id: this._id,
-   
     },
-    process.env.REFRESH_TOKEN_SECRET,
-    {
-        expireIn: process.env.REFRESH_TOKEN_EXPIRY
-    }
-
-)
-
+        process.env.REFRESH_TOKEN_SECRET,
+        {
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    )
 }
-
-
-
 
 export const User = mongoose.model("User", UserSchema)
