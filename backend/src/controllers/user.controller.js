@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js"
 import { User } from '../model/user.model.js'
 import jwt from 'jsonwebtoken'
 const generateAccessAndRefreshToken = async (userId) => {
@@ -304,50 +304,84 @@ const changeAvatar = asyncHandler(async (req, res) => {
     if (!covevrLocalPath) {
         throw new ApiError(400, "Cover file is missing")
     }
+
     const newCover = await uploadOnCloudinary(covevrLocalPath)
     if (!newCover?.url) {
         throw new ApiError(400, "Avatar updation is failed")
     }
 
-    const user = await User.findByIdAndUpdate(
+
+    const user = await User.findById(req.user?._id)
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    if (user.avatarImg) {
+        const deleteImg = await deleteOnCloudinary(user.avatarImg);
+        if (!deleteImg.result === "ok") {
+            throw new ApiError(400, "Failed to delete previous cover image from Cloudinary");
+        }
+    }
+
+
+    const newUser = await User.findByIdAndUpdate(
         req.user?.id,
         {
             $set: { coverImg: newCover.url }
         },
         {
-
+            new: true
         }
     ).select("-password -refreshToken ")
     return res.status(200)
-        .json(new ApiResponse(200, user, "User Avatar updated successfully"))
+        .json(new ApiResponse(200, newUser, "User Avatar updated successfully"))
 
 })
 
 const changeCover = asyncHandler(async (req, res) => {
+    const avatarLocalPath = req.file?.path;
 
-    const avatarLocalPath = req.file?.path
-
+    // Check if the file is provided
     if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is missing")
-    }
-    const newAvatar = await uploadOnCloudinary(avatarLocalPath)
-    if (!newAvatar?.url) {
-        throw new ApiError(400, "Avatar updation is failed")
+        throw new ApiError(400, "Avatar file is missing");
     }
 
-    const user = await User.findByIdAndUpdate(
+    // Upload the new avatar image to Cloudinary
+    const newAvatar = await uploadOnCloudinary(avatarLocalPath);
+    if (!newAvatar?.url) {
+        throw new ApiError(400, "Avatar updation failed");
+    }
+
+    // Find the user to get the previous cover image URL
+    const user = await User.findById(req.user?.id).select("-password -refreshToken -coverImg");
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Delete the old cover image from Cloudinary, if it exists
+    if (user.coverImg) {
+        const deleteImg = await deleteOnCloudinary(user.coverImg);
+        if (!deleteImg.result === "ok") {
+            throw new ApiError(400, "Failed to delete previous cover image from Cloudinary");
+        }
+    }
+
+    // Update the user with the new avatar image
+
+    const updatedUser = await User.findByIdAndUpdate(
         req.user?.id,
         {
             $set: { avatrImg: newAvatar.url }
         },
-        {
+        { new: true } // To return the updated user document
+    ).select("-password -refreshToken");
 
-        }
-    ).select("-password -refreshToken -avatarImg -coverImg")
+    // Send the updated user response
     return res.status(200)
-        .json(new ApiResponse(200, user, "User Cover Image updated successfully"))
+        .json(new ApiResponse(200, updatedUser, "User Cover Image updated successfully"));
+});
 
-})
 
 
 
